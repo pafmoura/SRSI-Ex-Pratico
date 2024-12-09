@@ -7,6 +7,9 @@ import socket
 import json
 import threading
 
+from base64 import b64decode
+
+
 class Agent:
     def __init__(self, name, gateway_url):
         self.name = name
@@ -69,8 +72,26 @@ def listen():
 
     while True:
         data = client_socket.recv(1024)
-        key_received = data.decode()
-        print(f"Chave recebida: {key_received}")
+        """key_received = data.decode()
+        print(f"Chave recebida: {key_received}")"""
+        if data:
+            message = json.loads(data.decode())
+            encrypted_key = b64decode(message['encrypted_key'])
+            iv = b64decode(message['iv'])
+
+            # Decifra a chave de sessão
+            session_key = agent.private_key.decrypt(
+                encrypted_key,
+                padding.OAEP(
+                    mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                    algorithm=hashes.SHA256(),
+                    label=None
+                )
+            )
+
+            print(f"Chave de sessão decifrada: {session_key.hex()}")
+            print(f"IV recebido: {iv.hex()}")
+        
 
 if __name__ == "__main__":
     gateway_url = "http://localhost:5000"

@@ -1,4 +1,5 @@
 import base64
+import json
 from flask import Flask, request, jsonify
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization, hashes
@@ -7,6 +8,10 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 import os 
 import threading
 import socket
+
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from base64 import b64encode
+
 app = Flask(__name__)
 
 class Gateway:
@@ -86,14 +91,14 @@ def exchange_key():
     if agent_name not in gateway.certificates:
         return jsonify({'error': 'Agente não registado.'}), 400
     
-    key = os.urandom(32)
+    """key = os.urandom(32)"""
+    session_key = os.urandom(32)
     iv = os.urandom(16)
-    key = Cipher(algorithms.AES(key), modes.CBC(iv))
-
+    """key = Cipher(algorithms.AES(key), modes.CBC(iv))"""
 
     
 
-    for agent in other_agents:
+    """for agent in other_agents:
         if agent not in gateway.certificates:
             return jsonify({'error': f'Agente {agent} não registado.'}), 400
         
@@ -105,7 +110,35 @@ def exchange_key():
         'message': 'Chave trocada com sucesso.',
         'keys': key,
         'iv': iv,
-    })
+    })"""
+    for agent in other_agents:
+        if agent not in gateway.certificates:
+            return jsonify({'error': f'Agente {agent} não registado.'}), 400
+
+        # Encripta a chave de sessão com a chave pública do destinatário
+        recipient_public_key_pem = gateway.certificates[agent]
+        recipient_public_key = serialization.load_pem_public_key(recipient_public_key_pem)
+
+        encrypted_key = recipient_public_key.encrypt(
+            session_key,
+            padding.OAEP(
+                mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                algorithm=hashes.SHA256(),
+                label=None
+            )
+        )
+
+        # Formata mensagem segura
+        message = json.dumps({
+            'from': agent_name,
+            'encrypted_key': b64encode(encrypted_key).decode('utf-8'),
+            'iv': b64encode(iv).decode('utf-8'),
+        })
+
+        gateway.sockets[agent].send(message.encode())
+        print(f"Chave de sessão encriptada enviada para {agent}")
+
+    return jsonify({'message': 'Chave trocada com sucesso.'})
 
 
     
