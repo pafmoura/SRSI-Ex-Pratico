@@ -40,7 +40,19 @@ class Agent:
             json={'name': self.name, 'other_agents': [other_agent_name]}
         )
 
-
+    def send_message(self, recipient_name, message):
+        response = requests.post(
+            f"{self.gateway_url}/send_message",
+            json={
+                'sender': self.name,
+                'recipient': recipient_name,
+                'message': message
+            }
+        )
+        if response.status_code == 200:
+            print(f"Mensagem enviada para {recipient_name}: {message}")
+        else:
+            print("Falha ao enviar mensagem:", response.json())
 
 
 
@@ -49,7 +61,8 @@ class Agent:
             print("Ações:")
             print("1. Registar na Gateway")
             print("2. Trocar chave com outro agente")
-            print("3. Exit")
+            print("3. Enviar mensagem para outro agente")
+            print("4. Exit")
             choice = input("Selecionar ação: ")
 
             if choice == "1":
@@ -58,6 +71,10 @@ class Agent:
                 other_agent = input("Insere o nome do outro agente: ")
                 self.exchange_key(other_agent)
             elif choice == "3":
+                recipient = input("Insere o nome do destinatário: ")
+                message = input("Insere a mensagem: ")
+                self.send_message(recipient, message)    
+            elif choice == "4":
                 print("A sair...")
                 break
             else:
@@ -76,21 +93,27 @@ def listen():
         print(f"Chave recebida: {key_received}")"""
         if data:
             message = json.loads(data.decode())
-            encrypted_key = b64decode(message['encrypted_key'])
-            iv = b64decode(message['iv'])
+            if 'message' in message:
+                print(f"Mensagem recebida de {message['from']}: {message['message']}")
+                continue
+            elif 'encrypted_key' in message and 'iv' in message:
+                encrypted_key = b64decode(message['encrypted_key'])
+                iv = b64decode(message['iv'])
 
-            # Decifra a chave de sessão
-            session_key = agent.private_key.decrypt(
-                encrypted_key,
-                padding.OAEP(
-                    mgf=padding.MGF1(algorithm=hashes.SHA256()),
-                    algorithm=hashes.SHA256(),
-                    label=None
+                # Decifra a chave de sessão
+                session_key = agent.private_key.decrypt(
+                    encrypted_key,
+                    padding.OAEP(
+                        mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                        algorithm=hashes.SHA256(),
+                        label=None
+                    )
                 )
-            )
 
             print(f"Chave de sessão decifrada: {session_key.hex()}")
             print(f"IV recebido: {iv.hex()}")
+        else:
+            print("Mensagem recebida num formmato desconhecido.")
         
 
 if __name__ == "__main__":
