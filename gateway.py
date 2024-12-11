@@ -140,7 +140,22 @@ def exchange_key():
 
     return jsonify({'message': 'Chave trocada com sucesso.'})
 
+@app.route('/send_message', methods=['POST'])
+def send_message():
+    data = request.json
+    sender = data.get('sender')
+    recipient = data.get('recipient')
+    message = data.get('message')
 
+    if recipient not in gateway.sockets:
+        return jsonify({'error': f'Agente {recipient} nao esta online ou nao esta registado.'}), 400
+
+    payload = json.dumps({'from': sender, 'message': message})
+    gateway.sockets[recipient].send(payload.encode())
+
+    print(f"Mensagem encaminhada do agente {sender} para o agente {recipient}.")
+
+    return jsonify({'message': 'Mensagem enviada com sucesso.'})
     
 if __name__ == '__main__':
     app.run(port=5000)
